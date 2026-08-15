@@ -119,11 +119,9 @@ dependencies {
 //        jarJar.ranged(it, "[0.4.1,)")
 //    })
 
-    //祸乱鬼魅
-    implementation fg.deobf("curse.maven:bosses-of-mass-destruction-forge-941573:5067728")
-    implementation fg.deobf("curse.maven:cloth-config-348521:5729105")
+    //Mowzie's Mobs
+    implementation fg.deobf("curse.maven:mowzies-mobs-250498:6586086")
     implementation fg.deobf("curse.maven:geckolib-388172:7025129")
-    implementation fg.deobf("curse.maven:cerbons-api-955605:5050080")
 }
 
 tasks.named('processResources', ProcessResources).configure {
