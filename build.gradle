@@ -1,22 +1,12 @@
-buildscript {
-    repositories {
-        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
-        classpath 'com.guardsquare:proguard-gradle:7.7.0'
-    }
-}
-
 plugins {
-    id 'eclipse'
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
     id 'idea'
-    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
-    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
 
-apply plugin: 'org.spongepowered.mixin'
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
 
 group = mod_group_id
 version = mod_version
@@ -25,161 +15,121 @@ base {
     archivesName = mod_id
 }
 
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(17)
-}
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-minecraft {
-    mappings channel: mapping_channel, version: mapping_version
+neoForge {
+    version = project.neo_version
 
-    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
-
-    copyIdeResources = true
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
 
     runs {
-        configureEach {
-            workingDirectory(file('run'))
-
-            property 'forge.logging.markers', 'REGISTRIES'
-
-            property 'forge.logging.console.level', 'debug'
-
-            mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
-            }
+        client1 {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            gameDirectory = project.file('./run/client1')
+            programArguments.addAll("--username", "player1")
         }
 
-        var client = client {
-            property 'forge.enabledGameTestNamespaces', mod_id
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
-        }
-
-        client_0 {
-            parent(client)
-            args("--username", "player_0")
-        }
-
-        client_1 {
-            parent(client)
-            args("--username", "player_1")
+        client2 {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            gameDirectory = project.file('./run/client2')
+            programArguments.addAll("--username", "player2")
         }
 
         server {
-            property 'forge.enabledGameTestNamespaces', mod_id
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
-            args '--nogui'
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
         gameTestServer {
-            property 'forge.enabledGameTestNamespaces', mod_id
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
         data {
-            workingDirectory(file('run-data'))
-            property('gradle.task', 'runData')
-            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+            data()
+            gameDirectory = project.file('./run-data')
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
         }
     }
-}
 
-mixin {
-    add sourceSets.main, "${mod_id}.refmap.json"
-    config "${mod_id}.mixins.json"
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
+    // 本地 jar 依赖：libs/<name>-<version>.jar，坐标写 blank:<name>:<version>
     flatDir {
         dir 'libs'
     }
     maven { // TOP
         url "https://cursemaven.com"
     }
-    maven { //mirror
+    maven { // mirror
         name = "ModMaven"
         url = "https://modmaven.dev"
     }
 }
 
-//jarJar.enable()
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
 
 dependencies {
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    // 前置，填入 1.21.1 版本坐标后取消注释
+    implementation "curse.maven:mowzies-mobs-250498:7760267"
+    implementation "curse.maven:geckolib-388172:8350073"
 
-    //dependencies
-    compileOnly("org.spongepowered:mixin:0.8.5")
-//    implementation(annotationProcessor("io.github.llamalad7:mixinextras-common:0.4.1"))
-//    implementation(jarJar("io.github.llamalad7:mixinextras-forge:0.4.1") {
-//        jarJar.ranged(it, "[0.4.1,)")
-//    })
-
-    //Mowzie's Mobs
-    implementation fg.deobf("curse.maven:mowzies-mobs-250498:6586086")
-    implementation fg.deobf("curse.maven:geckolib-388172:7025129")
+    compileOnly fileTree("libs/compileOnly")
 }
 
-tasks.named('processResources', ProcessResources).configure {
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
     var replaceProperties = [
-            minecraft_version: minecraft_version,
+            minecraft_version      : minecraft_version,
             minecraft_version_range: minecraft_version_range,
-            forge_version: forge_version,
-            forge_version_range: forge_version_range,
-            loader_version_range: loader_version_range,
-            mod_id: mod_id,
-            mod_name: mod_name,
-            mod_license: mod_license,
-            mod_version: mod_version,
-            mod_authors: mod_authors,
-            mod_description: mod_description,
-            mod_credits: mod_credits,
-            mod_url: mod_url,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+            mod_credits            : mod_credits,
+            mod_url                : mod_url,
     ]
-
     inputs.properties replaceProperties
-
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
-        expand replaceProperties + [project: project]
-    }
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
 }
 
-tasks.named('jar', Jar).configure {
-    manifest {
-        attributes(["Specification-Title"     : mod_id,
-                    "Specification-Vendor"    : mod_authors,
-                    "Specification-Version"   : "1",
-                    "Implementation-Title"    : project.name,
-                    "Implementation-Version"  : project.jar.archiveVersion,
-                    "Implementation-Vendor"   : mod_authors,
-                    "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
-                    "MixinConfigs"            : "${mod_id}.mixins.json"
-        ])
-    }
-
-    archiveFileName = "${mod_id}-${mod_version}.jar"
-    finalizedBy 'reobfJar'
-}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-//afterEvaluate {
-//    tasks.named('build') {
-//        doLast {
-//            def newFileName = "${mod_id}-${mod_version}.jar"
-//            def newJarPath = layout.buildDirectory.file("libs/$newFileName").get().asFile
-//            newJarPath.parentFile.mkdirs()
-//            ant.delete(file: file("build/libs/${mod_id}-${mod_version}-origin.jar"))
-//            ant.move(
-//                    file: file("build/libs/${mod_id}-${mod_version}-all.jar"),
-//                    tofile: file("build/libs/${mod_id}-${mod_version}.jar")
-//            )
-//        }
-//    }
-//}
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

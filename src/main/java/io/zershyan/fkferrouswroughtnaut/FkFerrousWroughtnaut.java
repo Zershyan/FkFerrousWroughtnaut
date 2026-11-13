@@ -1,6 +1,6 @@
 package io.zershyan.fkferrouswroughtnaut;
 
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.fml.common.Mod;
 
 @Mod(FkFerrousWroughtnaut.MODID)
 public class FkFerrousWroughtnaut {

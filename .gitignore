@@ -19,3 +19,8 @@ hs_err_pid*
 
 # Common working directory
 run
+run-data
+
+# 发布记录与临时产物
+curseforge/
+.narrafork/
